@@ -1,11 +1,11 @@
-from flask import Flask, render_template, request, flash, redirect, url_for, send_file
+from flask import Flask, render_template, request, flash, redirect, url_for, send_file, jsonify
 import os
 import fitz
 import pandas as pd
 import logging
 import re
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
-from concurrent.futures import ThreadPoolExecutor
+from celery import Celery
 from pymongo import MongoClient
 from core_utils import extract_pdf_data
 
@@ -13,6 +13,8 @@ from core_utils import extract_pdf_data
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
 app.secret_key = os.environ.get('SECRET_KEY', 'your_secret_key')
+app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+app.config['CELERY_RESULT_BACKEND'] = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
 # Setup logging
 logging.basicConfig()
@@ -23,8 +25,22 @@ logger.setLevel(logging.INFO)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# Create a global ThreadPoolExecutor (adjust max_workers as needed)
-executor = ThreadPoolExecutor(max_workers=2)
+# Celery setup function
+def make_celery(app):
+    celery = Celery(app.import_name,
+                    broker=app.config['CELERY_BROKER_URL'],
+                    backend=app.config['CELERY_RESULT_BACKEND'])
+    celery.conf.update(app.config)
+    # Ensure tasks run within Flask application context
+    TaskBase = celery.Task
+    class ContextTask(TaskBase):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return TaskBase.__call__(self, *args, **kwargs)
+    celery.Task = ContextTask
+    return celery
+
+celery = make_celery(app)
 
 # MongoDB connection using environment variable
 mongo_uri = os.environ.get(
@@ -55,14 +71,17 @@ class User(UserMixin):
 def load_user(user_id):
     return User(user_id)
 
-# Background function to process the PDF file
-def process_pdf_background(file_path):
+# Celery Task for processing the PDF file
+@celery.task
+def process_pdf_task(file_path):
     try:
         extracted_text = extract_pdf_data(file_path)
         save_to_mongo(extracted_text)
         logger.info("PDF processed and data saved to MongoDB successfully.")
+        return {'status': 'success'}
     except Exception as e:
         logger.error(f"Error processing PDF: {str(e)}")
+        return {'status': 'error', 'message': str(e)}
 
 # Routes
 @app.route('/', methods=['GET', 'POST'])
@@ -106,9 +125,10 @@ def upload():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
-        # Offload PDF processing to a background thread
-        executor.submit(process_pdf_background, file_path)
+        # Launch background task
+        task = process_pdf_task.delay(file_path)
         flash('File uploaded successfully. Processing in background.', 'success')
+        # Optionally, you can return task.id to track the status later
         return redirect(url_for('process'))
     else:
         flash('Invalid file format.', 'error')
@@ -135,7 +155,8 @@ def clear_table():
             collection.delete_many({})
             flash('Data cleared successfully.', 'success')
             # Delete all files in UPLOAD_FOLDER
-            for file_name in os.listdir(app.config['UPLOAD_FOLDER']):
+            file_list = os.listdir(app.config['UPLOAD_FOLDER'])
+            for file_name in file_list:
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
                 os.remove(file_path)
         else:
@@ -143,6 +164,19 @@ def clear_table():
     except Exception as e:
         flash(f'Error clearing data: {str(e)}', 'error')
     return redirect(url_for('process'))
+
+# Optional: Endpoint to check the status of a Celery task
+@app.route('/task_status/<task_id>', methods=['GET'])
+@login_required
+def task_status(task_id):
+    task = process_pdf_task.AsyncResult(task_id)
+    if task.state == 'PENDING':
+        response = {'state': task.state, 'status': 'Pending...'}
+    elif task.state != 'FAILURE':
+        response = {'state': task.state, 'status': task.info.get('status', '')}
+    else:
+        response = {'state': task.state, 'status': str(task.info)}
+    return jsonify(response)
 
 if __name__ == '__main__':
     app.run(debug=True)
