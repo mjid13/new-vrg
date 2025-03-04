@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>PDF to CSV Converter</title>
+    <style>
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .button {
+            margin-top: 10px;
+        }
+
+        .message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>PDF to CSV Converter</h1>
+        <form action="/process" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="pdf_file" accept=".pdf" required>
+            </div>
+            <div class="form-group">
+                <button class="button" type="submit">Convert to CSV</button>
+            </div>
+        </form>
+        <div id="message" class="message"></div>
+        <div id="download-link"></div>
+    </div>
+    <form action="/download_csv" method="GET">
+        <input type="hidden" name="filename" value="b1.pdf">
+        <input type="submit" value="Download CSV">
+    </form>
+    <script>
+        // Display a message and the download link after form submission
+        document.getElementById('message').innerText = "{{ message }}";
+        if ("{{ download_link }}") {
+            var downloadLink = document.createElement('a');
+            downloadLink.href = "{{ download_link }}";
+            downloadLink.innerText = "Download CSV";
+            document.getElementById('download-link').appendChild(downloadLink);
+        }
+    </script>
+</body>
+
+</html>

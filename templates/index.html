@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+
+<head>
+    <title>Tasdeed Tech</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+
+<body>
+
+    <!-- Left Side Content-->
+    <div class="h-screen md:flex">
+        <div
+            class="relative overflow-hidden md:flex w-1/2 bg-gradient-to-tr from-blue-400 to-blue-300 i justify-around items-center hidden">
+            <div>
+                <h1 class="text-white font-bold text-4xl font-sans">Tasdeed Tech</h1>
+                <p class="text-white mt-1">PDF to CSV Automation System</p>
+            </div>
+        </div>
+
+        <!-- Right Side Content-->
+
+        <div class="flex md:w-1/2 justify-center py-10 items-center bg-white">
+
+
+
+
+
+            <!-- Form Elements-->
+            <div
+                class="relative flex min-h-screen text-gray-800 antialiased flex-col justify-center overflow-hidden py-6 sm:py-12">
+                <!-- Alert-->
+
+                {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                <ul>
+                    {% for message in messages %}
+
+                    <div class=" bg-red-100 rounded-lg p-2 mb-4 text-sm text-red-700" role="alert">
+                        <svg class="w-5 h-5 inline mr-3" fill="currentColor" viewBox="0 0 20 20"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <span class="font-medium">Login Error!</span>{{ message }}
+                        </div>
+                    </div>
+
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endwith %}
+
+
+                <!-- End of Alert-->
+
+                <form action="{{ url_for('index') }}" method="POST">
+                    <div class="mt-4 bg-white shadow-md rounded-lg text-left">
+                        <div class="h-2 bg-blue-400 rounded-t-md"></div>
+                        <div class="px-8 py-6 ">
+                            <label class="block font-semibold"> Username</label>
+                            <input type="text" name="username" placeholder="Username"
+                                class="border w-full h-5 px-3 py-5 mt-2 hover:outline-none focus:outline-none focus:ring-indigo-500 focus:ring-1 rounded-md">
+                            <label class="block mt-3 font-semibold"> Password </label>
+                            <input type="password" name="password" placeholder="Password"
+                                class="border w-full h-5 px-3 py-5 mt-2 hover:outline-none focus:outline-none focus:ring-indigo-500 focus:ring-1 rounded-md">
+                            <div class="flex justify-between items-baseline">
+                                <button type="submit"
+                                    class="mt-4 bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-purple-600 ">Login</button>
+
+                            </div>
+
+                        </div>
+
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+
+
+
+</body>
+
+</html>

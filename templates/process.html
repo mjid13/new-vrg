@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Tasdeed Tech | PDF Processor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com/3.3.5"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-gradient-to-r from-blue-700 to-indigo-600 text-white py-6">
+  <div class="container mx-auto flex justify-between items-center px-6">
+    <div class="flex items-center space-x-3">
+      <i class="fas fa-file-pdf text-3xl"></i>
+      <span class="text-2xl font-bold">Tasdeed Tech</span>
+    </div>
+    <button class="text-white hover:text-blue-200">
+      <i class="fas fa-question-circle text-2xl"></i>
+    </button>
+  </div>
+</header>
+
+<!-- Main Container -->
+<main class="container mx-auto py-12 px-6">
+
+  <!-- Card -->
+  <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div class="p-8 text-center">
+      <h1 class="text-4xl font-bold text-gray-800">PDF Processor</h1>
+      <p class="text-gray-600 mt-2">Convert your PDF files to CSV format in seconds</p>
+    </div>
+
+    <form id="uploadForm" action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+
+      <!-- File Upload Area -->
+      <div id="drop-area" class="upload-area flex flex-col justify-center items-center bg-gray-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center cursor-pointer transition hover:border-blue-500 hover:bg-blue-50">
+        <i class="fas fa-cloud-upload-alt text-6xl text-blue-500"></i>
+        <h3 class="text-lg font-medium text-gray-700 mt-4">Drag & Drop your PDF here</h3>
+        <p class="text-sm text-gray-500">or</p>
+        <label for="file-upload" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">
+          <i class="fas fa-folder-open mr-2"></i> Browse Files
+          <input id="file-upload" type="file" name="pdf_file" accept=".pdf" class="sr-only" required>
+        </label>
+        <p id="selected-file" class="text-gray-500 mt-2">No file selected</p>
+        <p class="text-xs text-gray-400">PDF only, max 10MB</p>
+      </div>
+
+      <!-- Action Buttons -->
+            <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4">
+                <button type="submit" id="convert-btn" class="btn flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition">
+                    <i class="fas fa-exchange-alt mr-2"></i> Convert to CSV
+                </button>
+
+                <a href="/download_csv" class="flex-1 text-center bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition">
+                    <i class="fas fa-download mr-2"></i> Download CSV
+                </a>
+
+                    <!-- New Delete Data Button -->
+                    <a href="/clear_table"
+                       onclick="return confirm('Are you sure you want to delete all data? This action cannot be undone.')"
+                       class="flex-1 text-center bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition">
+                        <i class="fas fa-trash-alt mr-2"></i> Delete Data
+                    </a>
+            </div>
+
+
+      <!-- Processing Indicator -->
+      <div id="processing" class="hidden flex items-center justify-center space-x-2 mt-4">
+        <div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-blue-600">Processing file...</p>
+      </div>
+
+    </form>
+  </div>
+
+{#  <!-- Feature Cards -->#}
+{#  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">#}
+{#    <div class="bg-white rounded-lg shadow p-6 text-center">#}
+{#      <i class="fas fa-bolt text-blue-500 text-4xl mb-4"></i>#}
+{#      <h3 class="text-lg font-bold">Fast Conversion</h3>#}
+{#      <p class="text-sm text-gray-500 mt-2">Process PDFs quickly with our optimized engine.</p>#}
+{#    </div>#}
+{#    <div class="bg-white rounded-lg shadow p-6 text-center">#}
+{#      <i class="fas fa-shield-alt text-blue-500 text-4xl mb-4"></i>#}
+{#      <h3 class="text-lg font-bold">Secure Processing</h3>#}
+{#      <p class="text-sm text-gray-500 mt-2">Your files are processed securely and removed after conversion.</p>#}
+{#    </div>#}
+{#    <div class="bg-white rounded-lg shadow p-6 text-center">#}
+{#      <i class="fas fa-table text-blue-500 text-4xl mb-4"></i>#}
+{#      <h3 class="text-lg font-bold">Accurate Data</h3>#}
+{#      <p class="text-sm text-gray-500 mt-2">Ensure accurate table data extraction.</p>#}
+{#    </div>#}
+{#  </div>#}
+
+</main>
+
+<!-- Footer -->
+<footer class="bg-gray-800 text-white py-6 mt-16">
+  <div class="container mx-auto flex justify-between items-center px-6">
+    <div class="flex items-center space-x-2">
+      <i class="fas fa-file-pdf text-xl"></i>
+      <span class="font-bold">Tasdeed Tech</span>
+    </div>
+    <p class="text-sm text-gray-400">&copy; 2025 Ramz Tech. All rights reserved.</p>
+  </div>
+</footer>
+
+<!-- JavaScript -->
+<script>
+  const fileInput = document.getElementById('file-upload');
+  const fileInfo = document.getElementById('selected-file');
+  const dropArea = document.getElementById('drop-area');
+  const form = document.getElementById('uploadForm');
+  const convertBtn = document.getElementById('convert-btn');
+  const processingIndicator = document.getElementById('processing');
+
+  fileInput.addEventListener('change', () => updateFileName(fileInput.files[0]?.name));
+
+  ['dragenter', 'dragover'].forEach(event => {
+    dropArea.addEventListener(event, (e) => {
+      e.preventDefault();
+      dropArea.classList.add('border-blue-500', 'bg-blue-50');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(event => {
+    dropArea.addEventListener(event, (e) => {
+      e.preventDefault();
+      dropArea.classList.remove('border-blue-500', 'bg-blue-50');
+    });
+  });
+
+  dropArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (files.length) {
+      fileInput.files = files;
+      updateFileName(files[0].name);
+    }
+  });
+
+  function updateFileName(name) {
+    fileInfo.textContent = name || 'No file selected';
+  }
+
+  form.addEventListener('submit', () => {
+    convertBtn.disabled = true;
+    convertBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Converting...';
+    processingIndicator.classList.remove('hidden');
+  });
+</script>
+
+</body>
+</html>
