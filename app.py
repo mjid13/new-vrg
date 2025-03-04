@@ -76,6 +76,7 @@ def load_user(user_id):
 def process_pdf_task(file_path):
     try:
         extracted_text = extract_pdf_data(file_path)
+        logger.info(f"Extracted data: {extracted_text}")
         save_to_mongo(extracted_text)
         logger.info("PDF processed and data saved to MongoDB successfully.")
         return {'status': 'success'}
