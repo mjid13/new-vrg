@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, flash, redirect, url_for, send_file
 import os
-import unicodedata
+from core_utils import extract_pdf_data
 import fitz
 import pandas as pd
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
+import psycopg2
 import logging
-from core_utils import extract_pdf_data
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.secret_key = 'your_secret_key'
@@ -15,17 +15,51 @@ login_manager.init_app(app)
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 
-
-
-
 # Create a connection to the PostgreSQL database
-from pymongo import MongoClient
-
-client = MongoClient(
-    "mongodb+srv://dataeng:audywU57R6woeuT5@gaim.m7nzi.mongodb.net/?retryWrites=true&w=majority&tls=true&appName=gaim"
+conn = psycopg2.connect(
+    host='pdf2csv2-4399.postgres.pythonanywhere-services.com',
+    port='14399',
+    database='postgres',
+    user='super',
+    password='super@pdf2csv#',
+    sslmode="disable"
 )
-db = client['pdf_csv']  # Your database name
-collection = db['extracted_text']  # Your collection name
+cursor = conn.cursor()
+
+cursor.execute('''CREATE TABLE IF NOT EXISTS extracted_txt (
+                    id serial PRIMARY KEY,
+                    Customer varchar(200),
+                    Customer_No varchar(200),
+                    Account_No varchar(200),
+                    Meter_No varchar(200),
+                    Previous_Reading_Date varchar(200),
+                    Previous_Reading varchar(200),
+                    Current_Reading_Date varchar(200),
+                    Current_Reading varchar(200),
+                    Due_Date varchar(200),
+                    Reading_Type varchar(200),
+                    Tariff_Type varchar(200),
+                    Invoice_Month varchar(200),
+                    Government_Subsidy varchar(200),
+                    Consumption_KWH_1 varchar(200),
+                    Rate_1 varchar(200),
+                    Consumption_KWH_2 varchar(200),
+                    Rate_2 varchar(200),
+                    Consumption_KWH_3 varchar(200),
+                    Rate_3 varchar(200),
+                    Consumption_KWH_4 varchar(200),
+                    Rate_4 varchar(200),
+                    Consumption_KWH_5 varchar(200),
+                    Rate_5 varchar(200),
+                    Consumption_KWH_6 varchar(200),
+                    Rate_6 varchar(200),
+                    Total_Before_VAT varchar(200),
+                    VAT varchar(200),
+                    Total_After_VAT varchar(200),
+                    Total_Payable_Amount varchar(200)
+                );
+                ''')
+
 
 import re
 
@@ -85,6 +119,7 @@ def logout():
 @app.route('/process', methods=['GET','POST'])
 @login_required
 def process():
+    print('hello from process')
     return render_template('process.html')
 
 
@@ -116,13 +151,9 @@ def upload():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         file.save(file_path)
 
-        #try:
-            # Extract text from the PDF file
-        conversion_type = request.form.get('conversion_type')
+
         extracted_text = extract_pdf_data(file_path)
-
-
-        save_to_mongo(extracted_text)
+        save_to_postgres(extracted_text)
         # except:
         #     flash('Invalid file format! Please make sure to upload the correct PDF bill type.', 'error')
         #     return redirect(url_for('process'))
@@ -154,72 +185,122 @@ def extract_text_by_coordinates(pdf_path, page_num, rect):
     return text
 
 
-def is_arabic(text: str) -> bool:
-    """
-    Checks if the given text contains Arabic characters.
-
-    Parameters
-    ----------
-    text : str
-        The text to check.
-
-    Returns
-    -------
-    bool
-        True if the text contains Arabic characters, False otherwise.
-    """
-    for char in text:
-        if '\u0600' <= char <= '\u06FF' or '\u0750' <= char <= '\u077F' or '\u08A0' <= char <= '\u08FF' or '\uFB50' <= char <= '\uFDFF' or '\uFE70' <= char <= '\uFEFF':
-            return True
-    return False
-
-
-def is_float(string):
-    try:
-        float(string)
-        return True
-    except ValueError:
-        return False
-
-def save_to_mongo(data):
-    for _, extracted_text in data.items():
-        collection.insert_one(extracted_text)
-
-def fetch_all_documents():
-    return list(collection.find({}, {'_id': 0}))
+def save_to_postgres(data):
+    for page, extracted_text in data.items():
+        cursor = conn.cursor()
+        keys = extracted_text.keys()
+        values = [extracted_text[key] for key in keys]
+        insert_query = "INSERT INTO extracted_txt ({}) VALUES ({})".format(
+            ', '.join(keys),
+            ', '.join(['%s'] * len(keys))
+        )
+        cursor.execute(insert_query, tuple(values))
+        conn.commit()
+        cursor.close()
 
 @app.route('/download_csv', methods=['GET'])
 @login_required
 def download_csv():
-    rows = fetch_all_documents()
+    # Retrieve the extracted text from PostgreSQL
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM extracted_txt")
+    rows = cursor.fetchall()
+
     if rows:
         df = pd.DataFrame(rows)
+        # mypath = "mysite/{}"
+        # csv_path = os.path.join(mypath.format(app.config['UPLOAD_FOLDER']), 'Tasdeed.csv')
         csv_path = os.path.join(app.config['UPLOAD_FOLDER'], 'Tasdeed.csv')
+
+        # Capitalize the first row (header) in uppercase
+        header = [desc[0] for desc in cursor.description]
+        header = [(col.upper()).replace("_", " ") for col in header]
+        df.columns = header
+
+        # Save the DataFrame as a CSV file
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        return send_file(csv_path, mimetype='text/csv', as_attachment=True)
+
+        return send_file('/home/pdf2csv2/uploads/Tasdeed.csv', mimetype='text/csv', as_attachment=True)
 
     flash('No extracted text found.', 'error')
     return redirect(url_for('process'))
 
 
+
 @app.route('/clear_table', methods=['GET'])
 @login_required
 def clear_table():
+    # Check if the table is empty
+    # cursor = conn.cursor()
+    # cursor.execute("SELECT COUNT(*) FROM extracted_txt")
     try:
-        count = collection.count_documents({})
-        if count > 0:
-            collection.delete_many({})
-            flash('The Data Cleared Successfully.', 'success')
-            # Delete all files in UPLOAD_FOLDER
-            file_list = os.listdir(app.config['UPLOAD_FOLDER'])
-            for file_name in file_list:
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
-                os.remove(file_path)
-        else:
-            flash('There Is No Data To Clear.', 'info')
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM extracted_txt")
+            count = cursor.fetchone()[0]
+            # if count > 0:
+            #     cursor.execute("TRUNCATE TABLE extracted_txt")
+            # conn.commit()
+            # flash('Data cleared successfully.', 'success' if count > 0 else 'No data to clear.', 'info')
+
+
+            if count > 0:
+                # Drop the table from the database
+                cursor.execute("DROP TABLE extracted_tXt")
+                conn.commit()
+
+                # Recreate the table with the same structure
+                cursor.execute('''CREATE TABLE IF NOT EXISTS extracted_txt (
+                                    id serial PRIMARY KEY,
+                                    Customer varchar(200),
+                                    Customer_No varchar(200),
+                                    Account_No varchar(200),
+                                    Meter_No varchar(200),
+                                    Previous_Reading_Date varchar(200),
+                                    Previous_Reading varchar(200),
+                                    Current_Reading_Date varchar(200),
+                                    Current_Reading varchar(200),
+                                    Due_Date varchar(200),
+                                    Reading_Type varchar(200),
+                                    Tariff_Type varchar(200),
+                                    Invoice_Month varchar(200),
+                                    Government_Subsidy varchar(200),
+                                    Consumption_KWH_1 varchar(200),
+                                    Rate_1 varchar(200),
+                                    Consumption_KWH_2 varchar(200),
+                                    Rate_2 varchar(200),
+                                    Consumption_KWH_3 varchar(200),
+                                    Rate_3 varchar(200),
+                                    Consumption_KWH_4 varchar(200),
+                                    Rate_4 varchar(200),
+                                    Consumption_KWH_5 varchar(200),
+                                    Rate_5 varchar(200),
+                                    Consumption_KWH_6 varchar(200),
+                                    Rate_6 varchar(200),
+                                    Total_Before_VAT varchar(200),
+                                    VAT varchar(200),
+                                    Total_After_VAT varchar(200),
+                                    Total_Payable_Amount varchar(200)
+                                );
+                                ''')
+                conn.commit()
+                flash('The Data Cleared Successfully.', 'success')
+                # Delete all files in UPLOAD_FOLDER
+                # mypath = "mysite/{}"
+                # file_list = os.listdir(mypath.format(app.config['UPLOAD_FOLDER']))
+                file_list = os.listdir(app.config['UPLOAD_FOLDER'])
+                for file_name in file_list:
+                    # mypath = "mysite/{}"
+                    # file_path = os.path.join(mypath.format(app.config['UPLOAD_FOLDER']), file_name)
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
+                    os.remove(file_path)
+            else:
+                flash('There Is No Data To Clear.', 'info')
+
     except Exception as e:
-        flash(f'Error clearing data: {str(e)}', 'error')
-    return redirect(url_for('process'))
+        conn.rollback()  # Rollback the transaction on error
+        flash('Error clearing data: {}'.format(str(e)), 'error')
+    finally:
+        return redirect(url_for('process'))
 
 
 if __name__ == '__main__':
